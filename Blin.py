@@ -1,39 +1,53 @@
+"""
+Blin Official Interpreter
+========================
+Author: Geno
+Language: Blin (Binary Line)
+Version: 1.0.0
+Description: Official Python interpreter for the esolang Blin.
+"""
+
 import os
+import sys
 
 # ======================================== #
 # ================= Blin ================= #
 # ============== Binary Line============== #
 
-filename = "blin_code.txt"
+FILENAME = "blin_code.txt"
 
-try:
+def read_code(filename):
+    """Read Blin source code from a file."""
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"Error: '{filename}' not found")
     with open(filename, "r") as f:
-        code = f.read()
-except FileNotFoundError:
-    print(f"Error: '{filename}' not found")
-    exit()
+        return f.read()
 
-tokens = []
-i = 0
-while i < len(code):
-    if code[i:i+3] == "@$#":
-        i += 3
-        while i < len(code) and code[i:i+3] != "#$@":
+def tokenize(code):
+    """Convert raw Blin code into a list of tokens."""
+    tokens = []
+    i = 0
+    while i < len(code):
+        if code[i:i+3] == "@$#":
+            i += 3
+            while i < len(code) and code[i:i+3] != "#$@":
+                i += 1
+            i += 3 if i < len(code) else 0
+        elif code[i] == "_":
+            tokens.append("_")
             i += 1
-        i += 3 if i < len(code) else 0
-    elif code[i] == "_":
-        tokens.append("_")
-        i += 1
-    elif code[i].isspace():
-        i += 1
-    elif code[i:i+5] == "{Bin}":
-        tokens.append("{Bin}")
-        i += 5
-    else:
-        tokens.append(code[i])
-        i += 1
+        elif code[i].isspace():
+            i += 1
+        elif code[i:i+5] == "{Bin}":
+            tokens.append("{Bin}")
+            i += 5
+        else:
+            tokens.append(code[i])
+            i += 1
+    return tokens
 
 def to_bool(token):
+    """Convert '+' or '-' token into Boolean value."""
     if token == "+":
         return True
     elif token == "-":
@@ -41,93 +55,45 @@ def to_bool(token):
     else:
         raise ValueError(f"Invalid boolean token '{token}'")
 
-def execute(tokens):
-    stack = []
-    output_buffer = []
-    last_bin_index = -1
+class BlinInterpreter:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.stack = []
+        self.output_buffer = []
+        self.last_bin_index = -1
 
-    def exec_block(block, depth=0):
-        nonlocal last_bin_index
+    def execute(self):
+        """Execute the full token stream."""
+        try:
+            self._exec_block(self.tokens)
+            if self.output_buffer:
+                print("Output:", "".join(self.output_buffer))
+            print("Final stack:", self.stack)
+        except Exception as e:
+            print("Fatal error:", e)
+
+    def _exec_block(self, block, depth=0):
+        """Execute a block of tokens recursively."""
         i = 0
         while i < len(block):
             token = block[i]
             try:
                 if token in "+-":
-                    stack.append(to_bool(token))
+                    self.stack.append(to_bool(token))
                 elif token == "!":
-                    if not stack:
-                        raise ValueError(f"NOT (!) with empty stack at pos {i}")
-                    stack.append(not stack.pop())
-                elif token == "&":
-                    if len(stack) < 2:
-                        raise ValueError(f"AND (&) with <2 items at pos {i}")
-                    b, a = stack.pop(), stack.pop()
-                    stack.append(a and b)
-                elif token == "|":
-                    if len(stack) < 2:
-                        raise ValueError(f"OR (|) with <2 items at pos {i}")
-                    b, a = stack.pop(), stack.pop()
-                    stack.append(a or b)
-                elif token == "^":
-                    if len(stack) < 2:
-                        raise ValueError(f"XOR (^) with <2 items at pos {i}")
-                    b, a = stack.pop(), stack.pop()
-                    stack.append(a != b)
+                    self._unary_op(lambda x: not x, "NOT", i)
+                elif token in "&|^":
+                    self._binary_op(token, i)
                 elif token == "?":
-                    if not stack:
-                        raise ValueError(f"Ternary (?) with empty stack at pos {i}")
-                    cond = stack.pop()
-                    true_block = []
-                    false_block = []
-                    i += 1
-                    while i < len(block) and block[i] != "_":
-                        true_block.append(block[i])
-                        i += 1
-                    i += 1
-                    while i < len(block) and block[i] != "_":
-                        false_block.append(block[i])
-                        i += 1
-                    exec_block(true_block if cond else false_block, depth+1)
+                    i = self._ternary_op(block, i)
                 elif token == "*":
-                    if not stack:
-                        raise ValueError(f"Loop (*) with empty stack at pos {i}")
-                    body_start = i + 1
-                    body_block = []
-                    i += 1
-                    while i < len(block) and block[i] != "_":
-                        body_block.append(block[i])
-                        i += 1
-                    while stack and stack[-1]:
-                        exec_block(body_block, depth+1)
-                        stack.pop()
+                    i = self._loop_op(block, i)
                 elif token == ".":
-                    bits_collected = []
-                    j = i + 1
-                    while j < len(block) and len(bits_collected) < 8:
-                        if block[j] in "+-":
-                            bits_collected.append(block[j])
-                        j += 1
-                    if len(bits_collected) < 8:
-                        raise ValueError(f"Not enough bits for output at pos {i}")
-                    byte = 0
-                    for bit in bits_collected:
-                        byte = (byte << 1) | (1 if bit == "+" else 0)
-                    output_buffer.append(chr(byte))
-                    i = j - 1
+                    i = self._output_byte(block, i)
                 elif token == "_":
                     pass
                 elif token == "{Bin}":
-                    bin_output = []
-                    start_index = last_bin_index + 1
-                    for tok in block[start_index:i]:
-                        if tok == "+":
-                            bin_output.append("1")
-                        elif tok == "-":
-                            bin_output.append("0")
-                        elif tok == "_":
-                            bin_output.append(" ")
-                    print("".join(bin_output))
-                    last_bin_index = i
+                    self._binary_output(block, i)
                 else:
                     raise ValueError(f"Unknown token '{token}' at pos {i}")
             except ValueError as e:
@@ -135,14 +101,89 @@ def execute(tokens):
                 return
             i += 1
 
-    exec_block(tokens)
-    if output_buffer:
-        print("Output:", "".join(output_buffer))
-    print("Final stack:", stack)
+    def _unary_op(self, func, name, pos):
+        if not self.stack:
+            raise ValueError(f"{name} with empty stack at pos {pos}")
+        self.stack.append(func(self.stack.pop()))
 
-try:
-    execute(tokens)
-except Exception as e:
-    print("Fatal error:", e)
+    def _binary_op(self, token, pos):
+        if len(self.stack) < 2:
+            raise ValueError(f"{token} with <2 items at pos {pos}")
+        b, a = self.stack.pop(), self.stack.pop()
+        if token == "&":
+            self.stack.append(a and b)
+        elif token == "|":
+            self.stack.append(a or b)
+        elif token == "^":
+            self.stack.append(a != b)
 
-input("\nExecution finished. Press Enter to exit...")
+    def _ternary_op(self, block, i):
+        if not self.stack:
+            raise ValueError(f"Ternary (?) with empty stack at pos {i}")
+        cond = self.stack.pop()
+        true_block, false_block = [], []
+        i += 1
+        while i < len(block) and block[i] != "_":
+            true_block.append(block[i])
+            i += 1
+        i += 1
+        while i < len(block) and block[i] != "_":
+            false_block.append(block[i])
+            i += 1
+        self._exec_block(true_block if cond else false_block)
+        return i
+
+    def _loop_op(self, block, i):
+        if not self.stack:
+            raise ValueError(f"Loop (*) with empty stack at pos {i}")
+        body_block = []
+        i += 1
+        while i < len(block) and block[i] != "_":
+            body_block.append(block[i])
+            i += 1
+        while self.stack and self.stack[-1]:
+            self._exec_block(body_block)
+            self.stack.pop()
+        return i
+
+    def _output_byte(self, block, i):
+        bits = []
+        j = i + 1
+        while j < len(block) and len(bits) < 8:
+            if block[j] in "+-":
+                bits.append(block[j])
+            j += 1
+        if len(bits) < 8:
+            raise ValueError(f"Not enough bits for output at pos {i}")
+        byte = sum((1 if bit == "+" else 0) << (7-k) for k, bit in enumerate(bits))
+        self.output_buffer.append(chr(byte))
+        return j - 1
+
+    def _binary_output(self, block, i):
+        bin_output = []
+        start_index = self.last_bin_index + 1
+        for tok in block[start_index:i]:
+            if tok == "+":
+                bin_output.append("1")
+            elif tok == "-":
+                bin_output.append("0")
+            elif tok == "_":
+                bin_output.append(" ")
+        print("".join(bin_output))
+        self.last_bin_index = i
+
+def main():
+    try:
+        code = read_code(FILENAME)
+        tokens = tokenize(code)
+        interpreter = BlinInterpreter(tokens)
+        interpreter.execute()
+    except FileNotFoundError as e:
+        print(e)
+    except Exception as e:
+        print("Fatal error:", e)
+    finally:
+        input("\nExecution finished. Press Enter to exit...")
+
+if __name__ == "__main__":
+    main()
