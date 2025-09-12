@@ -1,0 +1,1 @@
+I have genuinely not a clue to what to add here, if you want to use Blin, I recommend you create a new folder, place the Python file in it, create a new text file called "blin_code.txt", place your Blin code in it, and run it.
