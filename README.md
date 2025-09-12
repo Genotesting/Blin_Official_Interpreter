@@ -50,13 +50,3 @@ This interpreter **faithfully executes all valid Blin programs** and provides de
    - `{Bin}` prints a binary representation of tokens since the last `{Bin}`  
 
 This interpreter’s behavior is fully deterministic and matches the official language semantics.
-
----
-
-## Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/Genotesting/Blin_Official_Interpreter.git
-cd Blin_Official_Interpreter
