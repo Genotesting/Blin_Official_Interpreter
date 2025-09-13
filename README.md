@@ -35,18 +35,3 @@ This repository contains the official Python implementation of **Blin**, a stack
 - `.` : Outputs the next 8 tokens as a character  
 
 This interpreter **faithfully executes all valid Blin programs** and provides deterministic output with clear error messages for invalid operations.
-
----
-
-## Language Specification
-
-1. **Tokens**: All program elements are single-character or multi-character tokens: `+`, `-`, `_`, `{Bin}`, etc.  
-2. **Stack Operations**: Blin is stack-based. All logic operations consume elements from the stack.  
-3. **Control Flow**:  
-   - `*` executes a block while the top of the stack is True  
-   - `?` chooses between two blocks based on a top-of-stack Boolean  
-4. **Output**:  
-   - `.` outputs the next 8 binary tokens as a character  
-   - `{Bin}` prints a binary representation of tokens since the last `{Bin}`  
-
-This interpreter’s behavior is fully deterministic and matches the official language semantics.
